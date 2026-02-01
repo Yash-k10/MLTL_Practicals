@@ -1,23 +1,175 @@
 <!DOCTYPE html>
-<html>
+<html lang="en">
 <head>
-  <title>TensorFlow Practical 1</title>
+  <meta charset="UTF-8" />
+  <title>Linear Regression using TensorFlow.js</title>
 
-  <!-- TensorFlow JS Library -->
-  <script src="https://cdn.jsdelivr.net/npm/@tensorflow/tfjs"></script>
+  <!-- TensorFlow.js CDN -->
+  <script src="https://cdn.jsdelivr.net/npm/@tensorflow/tfjs@4.16.0/dist/tf.min.js"></script>
+
+  <style>
+    body {
+      font-family: Arial, sans-serif;
+      text-align: center;
+      background: #f9f9f9;
+    }
+    button {
+      padding: 10px 20px;
+      font-size: 16px;
+      cursor: pointer;
+    }
+    #status {
+      margin-top: 10px;
+      font-weight: bold;
+    }
+    #epochLog {
+      margin: 15px auto;
+      width: 60%;
+      max-height: 180px;
+      overflow-y: auto;
+      border: 1px solid #ccc;
+      background: #fff;
+      padding: 10px;
+      text-align: left;
+    }
+    canvas {
+      border: 1px solid #333;
+      margin-top: 20px;
+      background: #fff;
+    }
+  </style>
 </head>
 
 <body>
-  <h2>TensorFlow JS Practical</h2>
+
+  <h2>Linear Regression with Synthetic Data</h2>
+  <button onclick="trainModel()">Train Model</button>
+
+  <div id="status">Status: Waiting</div>
+
+  <div id="epochLog">
+    <b>Epoch Logs:</b><br>
+  </div>
+
+  <canvas id="plot" width="500" height="400"></canvas>
 
   <script>
-    const a = tf.tensor([1, 2, 3]);
-    const b = tf.tensor([4, 5, 6]);
-    const c = tf.add(a, b);
+    // GLOBAL function (important)
+    async function trainModel() {
+      console.clear();
+      console.log("🚀 Training started");
 
-    console.log("Tensor A:", a.toString());
-    console.log("Tensor B:", b.toString());
-    console.log("Result (A + B):", c.toString());
+      document.getElementById("status").innerText = "Status: Training...";
+      document.getElementById("epochLog").innerHTML =
+        "<b>Epoch Logs:</b><br>";
+
+      // 1️⃣ Generate synthetic data
+      const xs = [];
+      const ys = [];
+
+      for (let i = 0; i < 100; i++) {
+        const x = Math.random() * 10;
+        const y = 2 * x + 5 + (Math.random() - 0.5) * 2;
+        xs.push(x);
+        ys.push(y);
+      }
+
+      console.log("📊 First 5 data points:");
+      console.table(xs.slice(0, 5).map((x, i) => ({
+        x: x.toFixed(2),
+        y: ys[i].toFixed(2)
+      })));
+
+      // 2️⃣ Convert to tensors
+      const xTensor = tf.tensor2d(xs, [xs.length, 1]);
+      const yTensor = tf.tensor2d(ys, [ys.length, 1]);
+
+      console.log("📦 Tensor shapes:", xTensor.shape, yTensor.shape);
+
+      // 3️⃣ Build model
+      const model = tf.sequential();
+      model.add(tf.layers.dense({
+        units: 1,
+        inputShape: [1]
+      }));
+
+      model.compile({
+        optimizer: tf.train.sgd(0.01),
+        loss: 'meanSquaredError'
+      });
+
+      console.log("🧠 Model compiled");
+
+      // 4️⃣ Train model
+      await model.fit(xTensor, yTensor, {
+        epochs: 50,
+        callbacks: {
+          onEpochEnd: (epoch, logs) => {
+            const msg =
+              `Epoch ${epoch + 1} → Loss: ${logs.loss.toFixed(4)}`;
+            console.log(msg);
+            document.getElementById("epochLog").innerHTML +=
+              msg + "<br>";
+          }
+        }
+      });
+
+      // 5️⃣ Predictions
+      const predictions = model.predict(xTensor).dataSync();
+
+      // 6️⃣ Learned parameters
+      const weights = model.getWeights();
+      const slope = weights[0].dataSync()[0].toFixed(2);
+      const bias = weights[1].dataSync()[0].toFixed(2);
+
+      console.log("⚖️ Learned slope:", slope);
+      console.log("⚖️ Learned bias:", bias);
+
+      document.getElementById("status").innerText =
+        `Status: Completed | Slope = ${slope}, Bias = ${bias}`;
+
+      // 7️⃣ Draw graph
+      drawGraph(xs, ys, predictions);
+
+      tf.dispose([xTensor, yTensor]);
+      console.log("✅ Training finished successfully");
+    }
+
+    // Graph drawing function
+    function drawGraph(xs, ys, preds) {
+      const canvas = document.getElementById("plot");
+      const ctx = canvas.getContext("2d");
+
+      ctx.clearRect(0, 0, canvas.width, canvas.height);
+
+      const maxX = Math.max(...xs);
+      const maxY = Math.max(...ys);
+
+      // Actual data (blue)
+      ctx.fillStyle = "blue";
+      xs.forEach((x, i) => {
+        ctx.beginPath();
+        ctx.arc(
+          (x / maxX) * canvas.width,
+          canvas.height - (ys[i] / maxY) * canvas.height,
+          3,
+          0,
+          Math.PI * 2
+        );
+        ctx.fill();
+      });
+
+      // Regression line (red)
+      ctx.strokeStyle = "red";
+      ctx.beginPath();
+      xs.forEach((x, i) => {
+        const px = (x / maxX) * canvas.width;
+        const py = canvas.height - (preds[i] / maxY) * canvas.height;
+        i === 0 ? ctx.moveTo(px, py) : ctx.lineTo(px, py);
+      });
+      ctx.stroke();
+    }
   </script>
+
 </body>
 </html>
