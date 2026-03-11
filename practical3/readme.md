@@ -1,81 +1,64 @@
-```html
-<!DOCTYPE html>
-<html>
-<head>
-<title>Sentiment Analysis Practical</title>
+# Sentiment Analysis Practical
 
-<style>
-body{
-font-family:Arial;
-margin:40px;
-background:#f5f5f5;
-}
+**Student Name:** Yash Kapse
+**Technology Used:** HTML, JavaScript, TensorFlow.js (CDN)
 
-.container{
-background:white;
-padding:30px;
-border-radius:10px;
-box-shadow:0 5px 20px rgba(0,0,0,0.1);
-}
+---
 
-h1,h2{
-color:#333;
-}
+## Overview
 
-p{
-line-height:1.6;
-}
+Sentiment Analysis is a Natural Language Processing (NLP) technique used to determine whether a sentence expresses **positive or negative emotion**.
+This project demonstrates sentiment classification using **TensorFlow.js directly in the browser**.
 
-</style>
-</head>
+---
 
-<body>
+## Task 1: Train Sentiment Classifier
 
-<div class="container">
+* A small dataset of **positive and negative sentences** is created.
+* The sentences are converted into **numerical vectors**.
+* A **Neural Network model** is trained using TensorFlow.js to classify sentiment.
 
-<h1>Sentiment Analysis Practical</h1>
+---
 
-<p><b>Student Name:</b> Yash Kapse</p>
-<p><b>Technology Used:</b> HTML, JavaScript, TensorFlow.js (CDN)</p>
+## Task 2: Test Custom Sentences
 
-<h2>Overview</h2>
-<p>
-Sentiment Analysis is a Natural Language Processing technique used to determine 
-whether a sentence expresses a positive or negative emotion. 
-This practical demonstrates sentiment classification using TensorFlow.js 
-directly in the browser.
-</p>
+* The trained model accepts **user input sentences**.
+* The system predicts **Positive or Negative sentiment**.
+* A **confidence score** is displayed to show prediction probability.
 
-<h2>Task 1: Train Sentiment Classifier</h2>
-<p>
-A small dataset of positive and negative sentences is created. 
-The sentences are converted into numerical vectors and a neural 
-network model is trained using TensorFlow.js to classify sentiment.
-</p>
+Example:
 
-<h2>Task 2: Test Custom Sentences</h2>
-<p>
-The trained model is tested using sentences entered by the user. 
-The system predicts whether the sentence is positive or negative 
-and displays a confidence score representing the prediction probability.
-</p>
+Input:
+`I love this product`
 
-<h2>Task 3: Compare Dense vs RNN</h2>
-<p>
-Two models are trained: a Dense Neural Network and a Recurrent Neural Network (RNN). 
-Both models analyze the same user input sentence and their predictions and 
-confidence scores are compared.
-</p>
+Output:
+Positive 😊 (Confidence: 92%)
 
-<h2>Conclusion</h2>
-<p>
-The experiment shows how neural networks can be used for sentiment analysis. 
-RNN models generally perform better for text data because they understand 
-word sequences and context.
-</p>
+---
 
-</div>
+## Task 3: Compare Dense vs RNN
 
-</body>
-</html>
-```
+Two models are trained:
+
+* **Dense Neural Network**
+* **Recurrent Neural Network (RNN)**
+
+Both models analyze the same input sentence and their **predictions and confidence scores are compared**.
+
+| Model         | Characteristic            |
+| ------------- | ------------------------- |
+| Dense Network | Simple and fast           |
+| RNN           | Understands word sequence |
+
+RNN generally performs **better for text-based tasks**.
+
+---
+
+## Conclusion
+
+This practical demonstrates how **Neural Networks can be used for sentiment analysis** in the browser using TensorFlow.js.
+The comparison shows that **RNN models capture text context better than simple dense networks**.
+
+---
+
+⭐ Built using **TensorFlow.js + CDN**
