@@ -1,0 +1,201 @@
+
+<!DOCTYPE html>
+<html>
+<head>
+<title>Sentiment Analyzer - Task 2</title>
+
+<!-- TensorFlow.js CDN -->
+<script src="https://cdn.jsdelivr.net/npm/@tensorflow/tfjs"></script>
+
+<style>
+
+body{
+font-family:Arial;
+background:linear-gradient(135deg,#667eea,#764ba2);
+height:100vh;
+display:flex;
+justify-content:center;
+align-items:center;
+margin:0;
+color:white;
+}
+
+.container{
+background:rgba(255,255,255,0.15);
+padding:30px;
+border-radius:12px;
+width:500px;
+text-align:center;
+}
+
+textarea{
+width:100%;
+height:100px;
+border:none;
+border-radius:6px;
+padding:10px;
+font-size:16px;
+}
+
+button{
+margin-top:15px;
+padding:10px 20px;
+font-size:16px;
+border:none;
+border-radius:6px;
+cursor:pointer;
+background:#00f2fe;
+color:black;
+}
+
+.result{
+margin-top:20px;
+font-size:22px;
+font-weight:bold;
+}
+
+</style>
+
+</head>
+
+<body>
+
+<div class="container">
+
+<h2>Sentiment Analyzer</h2>
+
+<p id="status">Model not trained</p>
+
+<button onclick="trainModel()">Train Model</button>
+
+<br><br>
+
+<textarea id="inputText" placeholder="Enter a sentence..."></textarea>
+
+<br>
+
+<button onclick="predict()">Analyze Sentiment</button>
+
+<div class="result" id="result"></div>
+
+<p>Created by <b>Yash Kapse</b></p>
+
+</div>
+
+<script>
+
+let model;
+
+/* Dataset */
+const sentences = [
+"I love this movie",
+"This product is amazing",
+"I feel very happy",
+"This is the best experience",
+"I really like this",
+
+"I hate this movie",
+"This is terrible",
+"I am very disappointed",
+"This product is bad",
+"I regret buying this"
+];
+
+const labels = [1,1,1,1,1,0,0,0,0,0];
+
+/* Simple vectorizer */
+function textToVector(text){
+
+text = text.toLowerCase();
+
+let positiveWords = ["love","amazing","happy","best","like"];
+let negativeWords = ["hate","terrible","bad","disappointed","regret"];
+
+let vector=[0,0];
+
+positiveWords.forEach(word=>{
+if(text.includes(word)) vector[0]+=1;
+});
+
+negativeWords.forEach(word=>{
+if(text.includes(word)) vector[1]+=1;
+});
+
+return vector;
+
+}
+
+/* Train Model */
+async function trainModel(){
+
+console.log("Training model...");
+
+let xs = sentences.map(s => textToVector(s));
+
+const xsTensor = tf.tensor2d(xs);
+const ysTensor = tf.tensor2d(labels,[labels.length,1]);
+
+model = tf.sequential();
+
+model.add(tf.layers.dense({
+units:8,
+activation:'relu',
+inputShape:[2]
+}));
+
+model.add(tf.layers.dense({
+units:1,
+activation:'sigmoid'
+}));
+
+model.compile({
+optimizer:'adam',
+loss:'binaryCrossentropy',
+metrics:['accuracy']
+});
+
+await model.fit(xsTensor,ysTensor,{
+epochs:50,
+callbacks:{
+onEpochEnd:(epoch,logs)=>{
+console.log("Epoch:",epoch,"Accuracy:",logs.acc);
+}
+}
+});
+
+console.log("Model trained");
+
+document.getElementById("status").innerHTML="Model trained ✓";
+
+}
+
+/* Prediction */
+function predict(){
+
+let text=document.getElementById("inputText").value;
+
+if(text.trim()===""){
+alert("Enter text first");
+return;
+}
+
+let vector=textToVector(text);
+
+const prediction=model.predict(tf.tensor2d([vector]));
+
+let score=prediction.dataSync()[0];
+
+console.log("Confidence Score:",score);
+
+let sentiment=score>0.5?"Positive 😊":"Negative 😡";
+
+document.getElementById("result").innerHTML=
+"Sentiment: "+sentiment+"<br>Confidence: "+(score*100).toFixed(2)+"%";
+
+}
+
+</script>
+
+</body>
+</html>
+

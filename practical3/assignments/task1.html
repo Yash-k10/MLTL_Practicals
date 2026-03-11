@@ -1,0 +1,139 @@
+```html
+<!DOCTYPE html>
+<html>
+<head>
+<title>Sentiment Classifier Training</title>
+
+<!-- TensorFlow.js CDN -->
+<script src="https://cdn.jsdelivr.net/npm/@tensorflow/tfjs"></script>
+
+<style>
+body{
+font-family:Arial;
+background:#f4f4f4;
+text-align:center;
+padding:40px;
+}
+
+button{
+padding:12px 20px;
+font-size:16px;
+cursor:pointer;
+}
+
+#status{
+margin-top:20px;
+font-size:18px;
+}
+</style>
+
+</head>
+
+<body>
+
+<h1>Sentiment Classifier (Training)</h1>
+
+<button onclick="trainModel()">Train Model</button>
+
+<div id="status"></div>
+
+<script>
+
+async function trainModel(){
+
+document.getElementById("status").innerHTML="Training model... check console";
+
+console.log("Preparing dataset...");
+
+/* Small sentiment dataset */
+const sentences = [
+"I love this movie",
+"This product is amazing",
+"I feel very happy",
+"This is the best experience",
+"I really like this",
+
+"I hate this movie",
+"This is terrible",
+"I am very disappointed",
+"This product is bad",
+"I regret buying this"
+];
+
+/* Labels (1 positive, 0 negative) */
+const labels = [1,1,1,1,1,0,0,0,0,0];
+
+/* Simple text vectorization */
+function textToVector(text){
+
+text = text.toLowerCase();
+
+let positiveWords = ["love","amazing","happy","best","like"];
+let negativeWords = ["hate","terrible","bad","disappointed","regret"];
+
+let vector = [0,0];
+
+positiveWords.forEach(word=>{
+if(text.includes(word)) vector[0]+=1;
+});
+
+negativeWords.forEach(word=>{
+if(text.includes(word)) vector[1]+=1;
+});
+
+return vector;
+
+}
+
+/* Convert sentences to vectors */
+let xs = sentences.map(s => textToVector(s));
+let ys = labels;
+
+const xsTensor = tf.tensor2d(xs);
+const ysTensor = tf.tensor2d(ys,[ys.length,1]);
+
+console.log("Input Data:", xs);
+
+/* Build Neural Network */
+const model = tf.sequential();
+
+model.add(tf.layers.dense({
+units:8,
+activation:'relu',
+inputShape:[2]
+}));
+
+model.add(tf.layers.dense({
+units:1,
+activation:'sigmoid'
+}));
+
+model.compile({
+optimizer:'adam',
+loss:'binaryCrossentropy',
+metrics:['accuracy']
+});
+
+console.log("Training started...");
+
+/* Train model */
+await model.fit(xsTensor, ysTensor,{
+epochs:50,
+callbacks:{
+onEpochEnd:(epoch,logs)=>{
+console.log("Epoch:",epoch,"Accuracy:",logs.acc);
+}
+}
+});
+
+console.log("Training completed");
+
+document.getElementById("status").innerHTML="Model Training Completed ✓";
+
+}
+
+</script>
+
+</body>
+</html>
+```
