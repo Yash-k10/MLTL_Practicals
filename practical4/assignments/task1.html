@@ -1,0 +1,149 @@
+<!DOCTYPE html>
+<html>
+<head>
+<title>AI Image Classifier</title>
+
+<script src="https://cdn.jsdelivr.net/npm/@tensorflow/tfjs"></script>
+<script src="https://cdn.jsdelivr.net/npm/@tensorflow-models/mobilenet"></script>
+
+<style>
+
+body{
+    font-family: Arial, sans-serif;
+    background: linear-gradient(135deg,#667eea,#764ba2);
+    text-align:center;
+    color:white;
+    margin:0;
+}
+
+.container{
+    margin-top:50px;
+    background:white;
+    color:black;
+    width:420px;
+    margin-left:auto;
+    margin-right:auto;
+    padding:30px;
+    border-radius:15px;
+    box-shadow:0 10px 30px rgba(0,0,0,0.3);
+}
+
+.author{
+    font-size:14px;
+    color:gray;
+    margin-bottom:20px;
+}
+
+img{
+    margin-top:20px;
+    width:250px;
+    border-radius:10px;
+}
+
+#result{
+    margin-top:20px;
+    text-align:left;
+}
+
+.prediction{
+    background:#f3f3f3;
+    padding:10px;
+    margin-top:8px;
+    border-radius:8px;
+}
+
+.status{
+    margin-top:10px;
+    font-size:14px;
+    color:#555;
+}
+
+</style>
+</head>
+
+<body>
+
+<div class="container">
+
+<h1>AI Image Classifier</h1>
+
+<div class="author">Developed by: <b>Yash Kapse</b></div>
+
+<p>Upload an image and AI will identify it</p>
+
+<input type="file" id="imageUpload" accept="image/*">
+
+<br>
+
+<img id="preview"/>
+
+<div class="status" id="status">Loading AI Model...</div>
+
+<div id="result"></div>
+
+</div>
+
+<script>
+
+let model;
+
+async function loadModel(){
+
+    console.log("Loading MobileNet model...");
+
+    document.getElementById("status").innerText="Loading AI Model...";
+
+    model = await mobilenet.load();
+
+    console.log("MobileNet model loaded!");
+
+    document.getElementById("status").innerText="Model Ready. Upload an Image.";
+
+}
+
+loadModel();
+
+document.getElementById("imageUpload").addEventListener("change", async function(event){
+
+    const file = event.target.files[0];
+
+    const img = document.getElementById("preview");
+
+    img.src = URL.createObjectURL(file);
+
+    img.onload = async function(){
+
+        console.log("Image uploaded. Running prediction...");
+
+        document.getElementById("status").innerText="Analyzing Image...";
+
+        const predictions = await model.classify(img);
+
+        console.log("Top Predictions:", predictions);
+
+        let output = "<h3>Top Predictions</h3>";
+
+        for(let i=0;i<3;i++){
+
+            output += `
+            <div class="prediction">
+            ${i+1}. ${predictions[i].className}
+            <br>
+            Confidence: ${(predictions[i].probability*100).toFixed(2)}%
+            </div>
+            `;
+
+        }
+
+        document.getElementById("result").innerHTML = output;
+
+        document.getElementById("status").innerText="Prediction completed.";
+
+    }
+
+});
+
+</script>
+
+</body>
+</html>
