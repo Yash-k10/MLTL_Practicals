@@ -1,0 +1,99 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Video Overlay UI | Yash Kapse</title>
+    <link href="https://fonts.googleapis.com/css2?family=Orbitron:wght@400;700&display=swap" rel="stylesheet">
+    
+    <script src="https://cdn.jsdelivr.net/npm/@tensorflow/tfjs"></script>
+    <script src="https://cdn.jsdelivr.net/npm/@tensorflow-models/mobilenet"></script>
+    
+    <style>
+        body {
+            font-family: 'Orbitron', sans-serif; background-color: #0d0d0d; color: #00ffcc;
+            display: flex; flex-direction: column; align-items: center; padding-top: 30px; margin: 0;
+        }
+        h2 { margin-bottom: 5px; text-shadow: 0 0 8px #00ffcc; }
+        .author { font-size: 0.9rem; color: #888; margin-bottom: 20px; }
+        .video-wrapper {
+            position: relative; width: 640px; height: 480px;
+            border: 2px solid #00ffcc; border-radius: 12px; overflow: hidden;
+            box-shadow: 0 0 20px rgba(0, 255, 204, 0.2);
+        }
+        video, canvas { position: absolute; top: 0; left: 0; width: 100%; height: 100%; }
+        #status { margin-bottom: 10px; color: #ffcc00; }
+    </style>
+</head>
+<body>
+
+    <h2>Target Identification HUD</h2>
+    <div class="author">System Architect: Yash Kapse</div>
+    <div id="status">System Booting...</div>
+
+    <div class="video-wrapper">
+        <video id="webcam" width="640" height="480" autoplay muted playsinline></video>
+        <canvas id="overlay" width="640" height="480"></canvas>
+    </div>
+
+    <script>
+        const video = document.getElementById('webcam');
+        const canvas = document.getElementById('overlay');
+        const ctx = canvas.getContext('2d');
+        const statusText = document.getElementById('status');
+        let model;
+        let lastLogTime = 0;
+
+        async function setupCamera() {
+            const stream = await navigator.mediaDevices.getUserMedia({ video: { width: 640, height: 480 } });
+            video.srcObject = stream;
+            return new Promise(resolve => video.onloadedmetadata = () => resolve());
+        }
+
+        async function analyzeFrame() {
+            const predictions = await model.classify(video);
+            const topPrediction = predictions[0];
+            const text = `${topPrediction.className.split(',')[0].toUpperCase()} [${Math.round(topPrediction.probability * 100)}%]`;
+
+            if (Date.now() - lastLogTime > 1000) {
+                console.log(`📡 Overlay Updated:`, text);
+                lastLogTime = Date.now();
+            }
+
+            // Clear canvas and draw overlay
+            ctx.clearRect(0, 0, canvas.width, canvas.height);
+            
+            // Draw Target Reticle (HUD style)
+            ctx.strokeStyle = '#00ffcc'; ctx.lineWidth = 2;
+            ctx.strokeRect(20, 20, canvas.width - 40, canvas.height - 40);
+            ctx.beginPath(); ctx.moveTo(canvas.width/2, 10); ctx.lineTo(canvas.width/2, 30); ctx.stroke();
+            ctx.beginPath(); ctx.moveTo(canvas.width/2, canvas.height-10); ctx.lineTo(canvas.width/2, canvas.height-30); ctx.stroke();
+
+            // Draw Label Overlay at the bottom
+            ctx.fillStyle = 'rgba(0, 0, 0, 0.7)';
+            ctx.fillRect(20, canvas.height - 70, canvas.width - 40, 50);
+            
+            ctx.fillStyle = '#00ffcc';
+            ctx.font = '24px Orbitron';
+            ctx.textAlign = 'center';
+            ctx.fillText(`PRIMARY TARGET: ${text}`, canvas.width / 2, canvas.height - 35);
+
+            requestAnimationFrame(analyzeFrame);
+        }
+
+        async function run() {
+            await setupCamera();
+            console.log("⏳ Fetching Neural Network (MobileNet)...");
+            statusText.innerText = 'Loading Neural Weights...';
+            
+            model = await mobilenet.load();
+            console.log("✅ Network Online. Initiating HUD.");
+            statusText.innerText = 'Live Feed Active';
+            
+            analyzeFrame();
+        }
+
+        run();
+    </script>
+</body>
+</html>

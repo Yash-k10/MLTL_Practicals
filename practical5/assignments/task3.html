@@ -1,0 +1,130 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>AI Performance Metrics | Yash Kapse</title>
+    <link href="https://fonts.googleapis.com/css2?family=Share+Tech+Mono&display=swap" rel="stylesheet">
+    
+    <script src="https://cdn.jsdelivr.net/npm/@tensorflow/tfjs"></script>
+    <script src="https://cdn.jsdelivr.net/npm/@tensorflow-models/mobilenet"></script>
+    
+    <style>
+        body {
+            font-family: 'Share Tech Mono', monospace; background-color: #111; color: #fff;
+            display: flex; flex-direction: column; align-items: center; padding: 20px;
+        }
+        h1 { color: #4facfe; margin: 0; }
+        .author { color: #f093fb; margin-bottom: 20px; }
+        .dashboard { display: flex; gap: 20px; align-items: flex-start; }
+        .video-container { position: relative; border: 3px solid #333; border-radius: 8px; }
+        .stats-panel {
+            background: #222; padding: 20px; border-radius: 8px; border-left: 4px solid #4facfe;
+            min-width: 250px; box-shadow: 0 4px 15px rgba(0,0,0,0.5);
+        }
+        .stat-box { margin-bottom: 15px; }
+        .stat-label { font-size: 0.9rem; color: #aaa; }
+        .stat-value { font-size: 1.8rem; font-weight: bold; color: #4facfe; }
+        .warning { color: #ff4c4c; font-size: 0.8rem; margin-top: 5px; display: none; }
+    </style>
+</head>
+<body>
+
+    <h1>Telemetry & Inference Analytics</h1>
+    <div class="author">Lead Dev: Yash Kapse</div>
+
+    <div class="dashboard">
+        <div class="video-container">
+            <video id="webcam" width="640" height="480" autoplay muted playsinline></video>
+        </div>
+        
+        <div class="stats-panel">
+            <div class="stat-box">
+                <div class="stat-label">SYSTEM STATUS</div>
+                <div class="stat-value" id="status" style="font-size: 1.2rem; color: #f093fb;">Booting...</div>
+            </div>
+            <div class="stat-box">
+                <div class="stat-label">FRAMES PER SECOND (FPS)</div>
+                <div class="stat-value" id="fps-val">0</div>
+            </div>
+            <div class="stat-box">
+                <div class="stat-label">INFERENCE TIME (ms)</div>
+                <div class="stat-value" id="inf-val">0</div>
+                <div id="perf-warning" class="warning">⚠️ High Latency Detected</div>
+            </div>
+            <div class="stat-box">
+                <div class="stat-label">TOP CLASSIFICATION</div>
+                <div class="stat-value" id="class-val" style="font-size: 1.2rem; color: #00ffcc;">-</div>
+            </div>
+        </div>
+    </div>
+
+    <script>
+        const video = document.getElementById('webcam');
+        const statusText = document.getElementById('status');
+        const fpsVal = document.getElementById('fps-val');
+        const infVal = document.getElementById('inf-val');
+        const classVal = document.getElementById('class-val');
+        const warning = document.getElementById('perf-warning');
+
+        let model;
+        // Variables for FPS calculation
+        let lastFrameTime = performance.now();
+        let frameCount = 0;
+        let lastFpsDisplayTime = performance.now();
+
+        async function initCamera() {
+            const stream = await navigator.mediaDevices.getUserMedia({ video: { width: 640, height: 480 } });
+            video.srcObject = stream;
+            return new Promise(resolve => video.onloadedmetadata = () => resolve());
+        }
+
+        async function processFrame() {
+            const now = performance.now();
+            
+            // 1. Measure Inference Time
+            const inferenceStart = performance.now();
+            const predictions = await model.classify(video);
+            const inferenceEnd = performance.now();
+            const inferenceTime = (inferenceEnd - inferenceStart).toFixed(1);
+            
+            // 2. Calculate FPS
+            frameCount++;
+            if (now - lastFpsDisplayTime >= 1000) {
+                const fps = Math.round((frameCount * 1000) / (now - lastFpsDisplayTime));
+                fpsVal.innerText = fps;
+                infVal.innerText = inferenceTime;
+                
+                // Show warning if inference takes too long (> 100ms)
+                warning.style.display = inferenceTime > 100 ? 'block' : 'none';
+                
+                console.log(`📊 Performance metrics: FPS: ${fps} | Inference Latency: ${inferenceTime}ms`);
+                
+                frameCount = 0;
+                lastFpsDisplayTime = now;
+            }
+
+            // Update Prediction UI
+            classVal.innerText = predictions[0].className.split(',')[0].toUpperCase();
+
+            // Loop
+            requestAnimationFrame(processFrame);
+        }
+
+        async function boot() {
+            await initCamera();
+            console.log("⚙️ TF.js Backend Initialized. Loading MobileNet...");
+            statusText.innerText = 'Loading Model...';
+            
+            model = await mobilenet.load();
+            console.log("✅ MobileNet Ready. Beginning Telemetry.");
+            statusText.innerText = 'ONLINE';
+            statusText.style.color = '#00ffcc';
+            
+            processFrame();
+        }
+
+        boot();
+    </script>
+</body>
+</html>

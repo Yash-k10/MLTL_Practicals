@@ -1,0 +1,85 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>MobileNet Classification | Yash Kapse</title>
+    <link href="https://fonts.googleapis.com/css2?family=Orbitron:wght@400;700&family=Roboto:wght@300&display=swap" rel="stylesheet">
+    
+    <script src="https://cdn.jsdelivr.net/npm/@tensorflow/tfjs"></script>
+    <script src="https://cdn.jsdelivr.net/npm/@tensorflow-models/mobilenet"></script>
+    
+    <style>
+        body {
+            font-family: 'Roboto', sans-serif;
+            background: radial-gradient(circle at center, #1a1a2e 0%, #16213e 100%);
+            color: #fff;
+            display: flex; flex-direction: column; align-items: center; padding-top: 30px;
+        }
+        h1 { font-family: 'Orbitron', sans-serif; color: #e94560; text-shadow: 0 0 10px rgba(233, 69, 96, 0.5); margin-bottom: 5px; }
+        .author { color: #a2a2bd; margin-bottom: 20px; font-style: italic; }
+        .glass-container {
+            background: rgba(255, 255, 255, 0.05); backdrop-filter: blur(10px);
+            border: 1px solid rgba(255, 255, 255, 0.1); border-radius: 15px;
+            padding: 20px; box-shadow: 0 10px 30px rgba(0,0,0,0.5); text-align: center;
+        }
+        video { border-radius: 10px; border: 2px solid #e94560; box-shadow: 0 0 15px rgba(233,69,96,0.3); }
+        #result { margin-top: 15px; font-size: 1.2rem; color: #0f3460; background: #fff; padding: 10px; border-radius: 8px; font-weight: bold; }
+    </style>
+</head>
+<body>
+
+    <h1>Vision AI Core</h1>
+    <div class="author">Engineered by Yash Kapse</div>
+
+    <div class="glass-container">
+        <div id="status">Initializing Webcam...</div>
+        <video id="webcam" width="500" height="375" autoplay muted playsinline></video>
+        <div id="result">Awaiting Model...</div>
+    </div>
+
+    <script>
+        const video = document.getElementById('webcam');
+        const statusText = document.getElementById('status');
+        const resultText = document.getElementById('result');
+        let model;
+        let lastLogTime = 0;
+
+        async function setupCamera() {
+            const stream = await navigator.mediaDevices.getUserMedia({ video: { width: 500, height: 375 } });
+            video.srcObject = stream;
+            return new Promise(resolve => video.onloadedmetadata = () => resolve());
+        }
+
+        async function classifyVideo() {
+            // MobileNet classifies the whole image
+            const predictions = await model.classify(video);
+            
+            // Console Logging (Throttled to 1 second)
+            if (Date.now() - lastLogTime > 1000) {
+                console.log(`🧠 Prediction: ${predictions[0].className} | Confidence: ${(predictions[0].probability * 100).toFixed(1)}%`);
+                lastLogTime = Date.now();
+            }
+
+            // Update UI
+            resultText.innerText = `Subject: ${predictions[0].className.toUpperCase()} (${(predictions[0].probability * 100).toFixed(1)}%)`;
+            
+            requestAnimationFrame(classifyVideo);
+        }
+
+        async function main() {
+            await setupCamera();
+            console.log("⚙️ Loading MobileNet Model...");
+            statusText.innerText = 'Loading MobileNet...';
+            
+            model = await mobilenet.load();
+            
+            console.log("✅ MobileNet Loaded! Starting classification...");
+            statusText.innerText = 'Live Classification Active';
+            classifyVideo();
+        }
+
+        main();
+    </script>
+</body>
+</html>
