@@ -1,0 +1,149 @@
+<!DOCTYPE html>
+<html>
+<head>
+  <title>Pose Detection - PoseNet</title>
+
+  <!-- TensorFlow.js -->
+  <script src="https://cdn.jsdelivr.net/npm/@tensorflow/tfjs@4.10.0"></script>
+
+  <!-- PoseNet Model -->
+  <script src="https://cdn.jsdelivr.net/npm/@tensorflow-models/posenet"></script>
+
+  <style>
+  body {
+    margin: 0;
+    font-family: Arial;
+    display: flex;
+    justify-content: center;
+    align-items: center;
+    height: 100vh;
+  }
+
+  .wrapper {
+    position: relative;
+    width: 640px;
+    height: 480px;
+  }
+
+  canvas, video {
+    position: absolute;
+    top: 0;
+    left: 0;
+  }
+</style>
+</head>
+
+<body>
+
+<h2>Pose Detection using PoseNet</h2>
+<h3 id="status">Loading model...</h3>
+
+<div class="wrapper">
+  <video id="video" width="640" height="480" autoplay muted></video>
+  <canvas id="canvas" width="640" height="480"></canvas>
+</div>
+
+<script>
+
+let net;
+const video = document.getElementById("video");
+const canvas = document.getElementById("canvas");
+const ctx = canvas.getContext("2d");
+
+// Setup webcam
+async function setupCamera() {
+  const stream = await navigator.mediaDevices.getUserMedia({
+    video: true
+  });
+  video.srcObject = stream;
+
+  return new Promise(resolve => {
+    video.onloadedmetadata = () => {
+      resolve(video);
+    };
+  });
+}
+
+// Draw keypoints (dots)
+function drawKeypoints(keypoints) {
+  keypoints.forEach(keypoint => {
+    if (keypoint.score > 0.5) {
+      const { y, x } = keypoint.position;
+      ctx.beginPath();
+      ctx.arc(x, y, 5, 0, 2 * Math.PI);
+      ctx.fillStyle = "red";
+      ctx.fill();
+    }
+  });
+}
+
+// Draw skeleton (lines)
+function drawSkeleton(keypoints) {
+  const adjacent = posenet.getAdjacentKeyPoints(keypoints, 0.5);
+
+  adjacent.forEach(points => {
+    ctx.beginPath();
+    ctx.moveTo(points[0].position.x, points[0].position.y);
+    ctx.lineTo(points[1].position.x, points[1].position.y);
+    ctx.strokeStyle = "green";
+    ctx.lineWidth = 2;
+    ctx.stroke();
+  });
+}
+
+// Simple posture detection
+function detectPosture(keypoints) {
+  const nose = keypoints.find(k => k.part === "nose");
+  const leftHip = keypoints.find(k => k.part === "leftHip");
+  const rightHip = keypoints.find(k => k.part === "rightHip");
+
+  if (nose.score > 0.5 && leftHip.score > 0.5 && rightHip.score > 0.5) {
+    const hipY = (leftHip.position.y + rightHip.position.y) / 2;
+
+    if (nose.position.y < hipY - 100) {
+      return "Standing";
+    } else {
+      return "Sitting";
+    }
+  }
+
+  return "Detecting...";
+}
+
+// Main loop
+async function detectPose() {
+  const pose = await net.estimateSinglePose(video, {
+    flipHorizontal: false
+  });
+
+  ctx.clearRect(0, 0, canvas.width, canvas.height);
+
+  drawKeypoints(pose.keypoints);
+  drawSkeleton(pose.keypoints);
+
+  const posture = detectPosture(pose.keypoints);
+
+console.log("Detected Posture:", posture);   // 👈 ADD THIS LINE
+
+document.getElementById("status").innerText = "Posture: " + posture;
+
+  requestAnimationFrame(detectPose);
+}
+
+// Initialize
+async function main() {
+  await setupCamera();
+  video.play();
+
+  net = await posenet.load();
+  document.getElementById("status").innerText = "Model Loaded";
+
+  detectPose();
+}
+
+main();
+
+</script>
+
+</body>
+</html>
