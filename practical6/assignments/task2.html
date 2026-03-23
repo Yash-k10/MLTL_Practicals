@@ -1,0 +1,103 @@
+<!DOCTYPE html>
+<html>
+<head>
+  <title>Squat Counter</title>
+
+  <script src="https://cdn.jsdelivr.net/npm/@tensorflow/tfjs"></script>
+  <script src="https://cdn.jsdelivr.net/npm/@tensorflow-models/posenet"></script>
+
+  <style>
+    body { text-align:center; font-family:Arial; }
+    canvas, video { position:absolute; top:0; left:0; }
+    .wrapper { position:relative; width:640px; height:480px; margin:auto; }
+  </style>
+</head>
+
+<body>
+
+<h2>Squat Counter using PoseNet</h2>
+<h3 id="count">Squats: 0</h3>
+
+<div class="wrapper">
+  <video id="video" width="640" height="480" autoplay muted></video>
+  <canvas id="canvas" width="640" height="480"></canvas>
+</div>
+
+<script>
+let net, count = 0, stage = "up";
+
+const video = document.getElementById("video");
+const canvas = document.getElementById("canvas");
+const ctx = canvas.getContext("2d");
+
+// Angle calculation
+function getAngle(A, B, C) {
+  const AB = { x: A.x - B.x, y: A.y - B.y };
+  const CB = { x: C.x - B.x, y: C.y - B.y };
+
+  const dot = AB.x * CB.x + AB.y * CB.y;
+  const magAB = Math.sqrt(AB.x**2 + AB.y**2);
+  const magCB = Math.sqrt(CB.x**2 + CB.y**2);
+
+  return Math.acos(dot / (magAB * magCB)) * (180 / Math.PI);
+}
+
+// Setup camera
+async function setupCamera() {
+  const stream = await navigator.mediaDevices.getUserMedia({ video: true });
+  video.srcObject = stream;
+  return new Promise(res => video.onloadedmetadata = res);
+}
+
+// Draw keypoints
+function draw(keypoints) {
+  keypoints.forEach(k => {
+    if (k.score > 0.5) {
+      ctx.beginPath();
+      ctx.arc(k.position.x, k.position.y, 5, 0, 2*Math.PI);
+      ctx.fillStyle = "red";
+      ctx.fill();
+    }
+  });
+}
+
+// Detect squat
+async function detect() {
+  const pose = await net.estimateSinglePose(video, { flipHorizontal:true });
+
+  ctx.clearRect(0,0,640,480);
+  ctx.drawImage(video,0,0);
+
+  draw(pose.keypoints);
+
+  const hip = pose.keypoints.find(k=>k.part==="leftHip").position;
+  const knee = pose.keypoints.find(k=>k.part==="leftKnee").position;
+  const ankle = pose.keypoints.find(k=>k.part==="leftAnkle").position;
+
+  const angle = getAngle(hip, knee, ankle);
+
+  console.log("Knee Angle:", angle);
+
+  if (angle > 160) stage = "up";
+  if (angle < 100 && stage === "up") {
+    stage = "down";
+    count++;
+    document.getElementById("count").innerText = "Squats: " + count;
+  }
+
+  requestAnimationFrame(detect);
+}
+
+// Main
+async function main() {
+  await setupCamera();
+  video.play();
+  net = await posenet.load();
+  detect();
+}
+
+main();
+</script>
+
+</body>
+</html>

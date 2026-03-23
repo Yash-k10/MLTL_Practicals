@@ -1,0 +1,96 @@
+<!DOCTYPE html>
+<html>
+<head>
+  <title>Single vs Multi Pose</title>
+
+  <script src="https://cdn.jsdelivr.net/npm/@tensorflow/tfjs"></script>
+  <script src="https://cdn.jsdelivr.net/npm/@tensorflow-models/posenet"></script>
+
+  <style>
+    body { text-align:center; font-family:Arial; }
+    canvas, video { position:absolute; top:0; left:0; }
+    .wrapper { position:relative; width:640px; height:480px; margin:auto; }
+  </style>
+</head>
+
+<body>
+
+<h2>Single vs Multi Pose Detection</h2>
+<h3 id="mode">Mode: Single Pose</h3>
+
+<button onclick="toggleMode()">Switch Mode</button>
+
+<div class="wrapper">
+  <video id="video" width="640" height="480" autoplay muted></video>
+  <canvas id="canvas" width="640" height="480"></canvas>
+</div>
+
+<script>
+let net, mode = "single";
+
+const video = document.getElementById("video");
+const canvas = document.getElementById("canvas");
+const ctx = canvas.getContext("2d");
+
+async function setupCamera() {
+  const stream = await navigator.mediaDevices.getUserMedia({ video:true });
+  video.srcObject = stream;
+  return new Promise(res => video.onloadedmetadata = res);
+}
+
+// Draw points
+function draw(keypoints) {
+  keypoints.forEach(k => {
+    if (k.score > 0.5) {
+      ctx.beginPath();
+      ctx.arc(k.position.x, k.position.y, 5, 0, 2*Math.PI);
+      ctx.fillStyle = "red";
+      ctx.fill();
+    }
+  });
+}
+
+// Toggle mode
+function toggleMode() {
+  mode = mode === "single" ? "multi" : "single";
+  document.getElementById("mode").innerText = "Mode: " + mode;
+}
+
+// Detection
+async function detect() {
+  ctx.clearRect(0,0,640,480);
+  ctx.drawImage(video,0,0);
+
+  if (mode === "single") {
+    const pose = await net.estimateSinglePose(video);
+
+    console.log("Single Pose Confidence:", pose.score);
+    draw(pose.keypoints);
+
+  } else {
+    const poses = await net.estimateMultiplePoses(video);
+
+    console.log("Multi Pose Count:", poses.length);
+
+    poses.forEach(p => {
+      console.log("Pose Confidence:", p.score);
+      draw(p.keypoints);
+    });
+  }
+
+  requestAnimationFrame(detect);
+}
+
+// Main
+async function main() {
+  await setupCamera();
+  video.play();
+  net = await posenet.load();
+  detect();
+}
+
+main();
+</script>
+
+</body>
+</html>
