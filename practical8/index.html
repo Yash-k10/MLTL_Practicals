@@ -1,0 +1,1035 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1.0"/>
+<title>Transfer Learning · MobileNet</title>
+<link href="https://fonts.googleapis.com/css2?family=Space+Mono:wght@400;700&family=Syne:wght@400;600;800&display=swap" rel="stylesheet"/>
+<script src="https://cdn.jsdelivr.net/npm/@tensorflow/tfjs@3.21.0/dist/tf.min.js"></script>
+<script src="https://cdn.jsdelivr.net/npm/@tensorflow-models/mobilenet@2.1.0/dist/mobilenet.min.js"></script>
+<style>
+  :root {
+    --bg: #0a0a0f;
+    --surface: #111118;
+    --card: #16161f;
+    --border: #2a2a3a;
+    --accent: #ff6b35;
+    --accent2: #ffd23f;
+    --accent3: #06ffa5;
+    --text: #f0f0f8;
+    --muted: #6b6b88;
+    --apple: #ff4757;
+    --banana: #ffd23f;
+    --orange: #ff7f50;
+  }
+
+  * { box-sizing: border-box; margin: 0; padding: 0; }
+
+  body {
+    background: var(--bg);
+    color: var(--text);
+    font-family: 'Space Mono', monospace;
+    min-height: 100vh;
+    overflow-x: hidden;
+  }
+
+  /* Background grid */
+  body::before {
+    content: '';
+    position: fixed;
+    inset: 0;
+    background-image:
+      linear-gradient(rgba(255,107,53,0.04) 1px, transparent 1px),
+      linear-gradient(90deg, rgba(255,107,53,0.04) 1px, transparent 1px);
+    background-size: 40px 40px;
+    pointer-events: none;
+    z-index: 0;
+  }
+
+  .container {
+    position: relative;
+    z-index: 1;
+    max-width: 1100px;
+    margin: 0 auto;
+    padding: 32px 20px 60px;
+  }
+
+  /* Header */
+  header {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    margin-bottom: 48px;
+    border-bottom: 1px solid var(--border);
+    padding-bottom: 24px;
+  }
+
+  .logo-area h1 {
+    font-family: 'Syne', sans-serif;
+    font-weight: 800;
+    font-size: clamp(1.4rem, 3vw, 2rem);
+    background: linear-gradient(135deg, var(--accent), var(--accent2));
+    -webkit-background-clip: text;
+    -webkit-text-fill-color: transparent;
+    background-clip: text;
+    letter-spacing: -1px;
+  }
+
+  .logo-area p {
+    color: var(--muted);
+    font-size: 0.7rem;
+    margin-top: 4px;
+    letter-spacing: 2px;
+    text-transform: uppercase;
+  }
+
+  .author-badge {
+    background: var(--card);
+    border: 1px solid var(--border);
+    border-radius: 100px;
+    padding: 8px 18px;
+    font-size: 0.7rem;
+    color: var(--accent3);
+    letter-spacing: 1px;
+    text-transform: uppercase;
+    white-space: nowrap;
+  }
+
+  /* Status bar */
+  #status-bar {
+    display: flex;
+    align-items: center;
+    gap: 12px;
+    background: var(--surface);
+    border: 1px solid var(--border);
+    border-radius: 12px;
+    padding: 14px 20px;
+    margin-bottom: 32px;
+    font-size: 0.78rem;
+    transition: border-color 0.3s;
+  }
+
+  #status-bar.ready { border-color: var(--accent3); }
+  #status-bar.training { border-color: var(--accent2); }
+  #status-bar.error { border-color: var(--apple); }
+
+  .status-dot {
+    width: 8px; height: 8px;
+    border-radius: 50%;
+    background: var(--muted);
+    flex-shrink: 0;
+    animation: none;
+  }
+  .status-dot.pulse {
+    background: var(--accent2);
+    animation: pulse 1s infinite;
+  }
+  .status-dot.green { background: var(--accent3); animation: none; }
+  .status-dot.red { background: var(--apple); animation: none; }
+
+  @keyframes pulse {
+    0%, 100% { opacity: 1; transform: scale(1); }
+    50% { opacity: 0.4; transform: scale(0.8); }
+  }
+
+  #status-text { color: var(--text); }
+
+  /* Phase steps */
+  .phases {
+    display: flex;
+    gap: 8px;
+    margin-bottom: 36px;
+    flex-wrap: wrap;
+  }
+
+  .phase {
+    flex: 1;
+    min-width: 120px;
+    background: var(--card);
+    border: 1px solid var(--border);
+    border-radius: 10px;
+    padding: 14px 16px;
+    font-size: 0.65rem;
+    text-transform: uppercase;
+    letter-spacing: 1.5px;
+    color: var(--muted);
+    transition: all 0.3s;
+    position: relative;
+    overflow: hidden;
+  }
+
+  .phase .phase-num {
+    font-family: 'Syne', sans-serif;
+    font-size: 1.4rem;
+    font-weight: 800;
+    display: block;
+    color: var(--border);
+    transition: color 0.3s;
+    margin-bottom: 4px;
+  }
+
+  .phase.active { border-color: var(--accent2); color: var(--accent2); }
+  .phase.active .phase-num { color: var(--accent2); }
+  .phase.done { border-color: var(--accent3); color: var(--accent3); }
+  .phase.done .phase-num { color: var(--accent3); }
+
+  /* Main grid */
+  .main-grid {
+    display: grid;
+    grid-template-columns: 1fr 340px;
+    gap: 20px;
+    align-items: start;
+  }
+
+  @media (max-width: 800px) {
+    .main-grid { grid-template-columns: 1fr; }
+  }
+
+  /* Fruit cards */
+  .fruits-section h2 {
+    font-family: 'Syne', sans-serif;
+    font-size: 1rem;
+    font-weight: 600;
+    letter-spacing: 1px;
+    text-transform: uppercase;
+    color: var(--muted);
+    margin-bottom: 16px;
+  }
+
+  .fruit-cards {
+    display: flex;
+    flex-direction: column;
+    gap: 16px;
+  }
+
+  .fruit-card {
+    background: var(--card);
+    border: 1px solid var(--border);
+    border-radius: 16px;
+    padding: 20px;
+    transition: border-color 0.3s, transform 0.2s;
+  }
+
+  .fruit-card:hover { transform: translateY(-2px); }
+
+  .fruit-card.apple { --color: var(--apple); }
+  .fruit-card.banana { --color: var(--banana); }
+  .fruit-card.orange { --color: var(--orange); }
+
+  .fruit-card { border-left: 3px solid var(--color); }
+
+  .fruit-header {
+    display: flex;
+    align-items: center;
+    gap: 12px;
+    margin-bottom: 16px;
+  }
+
+  .fruit-icon {
+    width: 40px; height: 40px;
+    border-radius: 10px;
+    background: color-mix(in srgb, var(--color) 15%, transparent);
+    border: 1px solid color-mix(in srgb, var(--color) 30%, transparent);
+    display: flex; align-items: center; justify-content: center;
+    font-size: 1.4rem;
+  }
+
+  .fruit-name {
+    font-family: 'Syne', sans-serif;
+    font-weight: 700;
+    font-size: 1.1rem;
+    color: var(--color);
+  }
+
+  .fruit-count {
+    margin-left: auto;
+    font-size: 0.7rem;
+    color: var(--muted);
+    background: var(--surface);
+    padding: 4px 10px;
+    border-radius: 20px;
+    border: 1px solid var(--border);
+  }
+
+  /* Upload zone */
+  .upload-zone {
+    border: 2px dashed color-mix(in srgb, var(--color) 40%, transparent);
+    border-radius: 12px;
+    padding: 20px;
+    text-align: center;
+    cursor: pointer;
+    transition: all 0.2s;
+    background: color-mix(in srgb, var(--color) 4%, transparent);
+    position: relative;
+  }
+
+  .upload-zone:hover {
+    border-color: var(--color);
+    background: color-mix(in srgb, var(--color) 8%, transparent);
+  }
+
+  .upload-zone input {
+    position: absolute;
+    inset: 0;
+    opacity: 0;
+    cursor: pointer;
+    width: 100%;
+    height: 100%;
+  }
+
+  .upload-zone p {
+    font-size: 0.72rem;
+    color: var(--muted);
+    margin-top: 6px;
+  }
+
+  .upload-zone span {
+    color: var(--color);
+    font-size: 0.8rem;
+    font-weight: 700;
+  }
+
+  /* Thumbnails */
+  .thumbnails {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 8px;
+    margin-top: 12px;
+  }
+
+  .thumb {
+    width: 60px; height: 60px;
+    border-radius: 8px;
+    object-fit: cover;
+    border: 2px solid var(--color);
+    opacity: 0;
+    animation: fadeIn 0.4s forwards;
+  }
+
+  @keyframes fadeIn { to { opacity: 1; } }
+
+  /* Right panel */
+  .right-panel { display: flex; flex-direction: column; gap: 16px; }
+
+  .panel-card {
+    background: var(--card);
+    border: 1px solid var(--border);
+    border-radius: 16px;
+    padding: 20px;
+  }
+
+  .panel-card h3 {
+    font-family: 'Syne', sans-serif;
+    font-size: 0.8rem;
+    font-weight: 600;
+    text-transform: uppercase;
+    letter-spacing: 2px;
+    color: var(--muted);
+    margin-bottom: 16px;
+  }
+
+  /* Train button */
+  #train-btn {
+    width: 100%;
+    padding: 16px;
+    background: linear-gradient(135deg, var(--accent), #ff8c42);
+    border: none;
+    border-radius: 12px;
+    color: white;
+    font-family: 'Syne', sans-serif;
+    font-weight: 700;
+    font-size: 1rem;
+    letter-spacing: 1px;
+    cursor: pointer;
+    transition: all 0.2s;
+    text-transform: uppercase;
+    position: relative;
+    overflow: hidden;
+  }
+
+  #train-btn::before {
+    content: '';
+    position: absolute;
+    inset: 0;
+    background: linear-gradient(135deg, rgba(255,255,255,0.15), transparent);
+    opacity: 0;
+    transition: opacity 0.2s;
+  }
+
+  #train-btn:hover:not(:disabled)::before { opacity: 1; }
+  #train-btn:hover:not(:disabled) { transform: translateY(-2px); box-shadow: 0 8px 24px rgba(255,107,53,0.35); }
+  #train-btn:disabled { opacity: 0.4; cursor: not-allowed; transform: none; box-shadow: none; }
+
+  #predict-btn {
+    width: 100%;
+    padding: 14px;
+    background: transparent;
+    border: 2px solid var(--accent3);
+    border-radius: 12px;
+    color: var(--accent3);
+    font-family: 'Syne', sans-serif;
+    font-weight: 700;
+    font-size: 0.9rem;
+    cursor: pointer;
+    transition: all 0.2s;
+    text-transform: uppercase;
+    letter-spacing: 1px;
+    margin-top: 8px;
+  }
+
+  #predict-btn:hover:not(:disabled) {
+    background: color-mix(in srgb, var(--accent3) 12%, transparent);
+    transform: translateY(-2px);
+  }
+
+  #predict-btn:disabled { opacity: 0.3; cursor: not-allowed; }
+
+  /* Progress */
+  .progress-wrap {
+    margin-top: 4px;
+  }
+
+  .progress-label {
+    display: flex;
+    justify-content: space-between;
+    font-size: 0.68rem;
+    color: var(--muted);
+    margin-bottom: 6px;
+  }
+
+  .progress-bar {
+    height: 6px;
+    background: var(--surface);
+    border-radius: 3px;
+    overflow: hidden;
+    margin-bottom: 10px;
+  }
+
+  .progress-fill {
+    height: 100%;
+    background: linear-gradient(90deg, var(--accent), var(--accent2));
+    border-radius: 3px;
+    width: 0%;
+    transition: width 0.4s ease;
+  }
+
+  /* Stats */
+  .stat-row {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    padding: 8px 0;
+    border-bottom: 1px solid var(--border);
+    font-size: 0.72rem;
+  }
+
+  .stat-row:last-child { border-bottom: none; }
+  .stat-label { color: var(--muted); }
+  .stat-value { color: var(--text); font-weight: 700; }
+  .stat-value.green { color: var(--accent3); }
+  .stat-value.orange { color: var(--accent); }
+
+  /* Console */
+  #console-box {
+    background: #050508;
+    border: 1px solid var(--border);
+    border-radius: 12px;
+    padding: 16px;
+    font-size: 0.68rem;
+    height: 200px;
+    overflow-y: auto;
+    line-height: 1.8;
+  }
+
+  #console-box::-webkit-scrollbar { width: 4px; }
+  #console-box::-webkit-scrollbar-track { background: transparent; }
+  #console-box::-webkit-scrollbar-thumb { background: var(--border); border-radius: 2px; }
+
+  .log-line { display: block; }
+  .log-line .ts { color: var(--muted); margin-right: 8px; }
+  .log-line.info .msg { color: #7dd3fc; }
+  .log-line.success .msg { color: var(--accent3); }
+  .log-line.warn .msg { color: var(--accent2); }
+  .log-line.error .msg { color: var(--apple); }
+  .log-line.accent .msg { color: var(--accent); }
+
+  /* Predict result */
+  #result-box {
+    background: var(--surface);
+    border-radius: 10px;
+    padding: 14px;
+    text-align: center;
+    min-height: 60px;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    flex-direction: column;
+    gap: 6px;
+  }
+
+  #result-label {
+    font-family: 'Syne', sans-serif;
+    font-size: 1.6rem;
+    font-weight: 800;
+  }
+
+  #result-conf { font-size: 0.7rem; color: var(--muted); }
+
+  /* Predict upload */
+  #predict-upload-zone {
+    border: 2px dashed var(--border);
+    border-radius: 10px;
+    padding: 14px;
+    text-align: center;
+    cursor: pointer;
+    position: relative;
+    font-size: 0.72rem;
+    color: var(--muted);
+    transition: all 0.2s;
+    margin-top: 8px;
+  }
+
+  #predict-upload-zone:hover { border-color: var(--accent3); color: var(--text); }
+  #predict-upload-zone input { position: absolute; inset: 0; opacity: 0; cursor: pointer; width: 100%; height: 100%; }
+  #predict-preview { width: 100%; border-radius: 8px; margin-top: 8px; display: none; max-height: 140px; object-fit: contain; }
+
+  /* Epoch chart */
+  #loss-chart {
+    display: flex;
+    gap: 3px;
+    align-items: flex-end;
+    height: 60px;
+    margin-top: 8px;
+  }
+
+  .loss-bar {
+    flex: 1;
+    background: color-mix(in srgb, var(--accent) 60%, transparent);
+    border-radius: 3px 3px 0 0;
+    min-height: 3px;
+    transition: height 0.3s;
+  }
+
+  /* Loader spinner */
+  .spinner {
+    display: inline-block;
+    width: 14px; height: 14px;
+    border: 2px solid var(--border);
+    border-top-color: var(--accent2);
+    border-radius: 50%;
+    animation: spin 0.7s linear infinite;
+    vertical-align: middle;
+    margin-right: 6px;
+  }
+
+  @keyframes spin { to { transform: rotate(360deg); } }
+</style>
+</head>
+<body>
+<div class="container">
+
+  <!-- Header -->
+  <header>
+    <div class="logo-area">
+      <h1>⚡ TransferNet</h1>
+      <p>MobileNet → Custom Fruit Classifier · TensorFlow.js</p>
+    </div>
+    <div class="author-badge">✦ Developed by Yash Kapse</div>
+  </header>
+
+  <!-- Status bar -->
+  <div id="status-bar">
+    <div class="status-dot pulse" id="status-dot"></div>
+    <span id="status-text"><span class="spinner"></span>Initializing TensorFlow.js &amp; loading MobileNet...</span>
+  </div>
+
+  <!-- Phases -->
+  <div class="phases">
+    <div class="phase active" id="ph1"><span class="phase-num">01</span>Load Model</div>
+    <div class="phase" id="ph2"><span class="phase-num">02</span>Add Images</div>
+    <div class="phase" id="ph3"><span class="phase-num">03</span>Train</div>
+    <div class="phase" id="ph4"><span class="phase-num">04</span>Predict</div>
+  </div>
+
+  <!-- Main -->
+  <div class="main-grid">
+
+    <!-- Left: fruit cards -->
+    <div class="fruits-section">
+      <h2>// Dataset — Add Images per Category</h2>
+      <div class="fruit-cards">
+
+        <!-- Apple -->
+        <div class="fruit-card apple">
+          <div class="fruit-header">
+            <div class="fruit-icon">🍎</div>
+            <div class="fruit-name">Apple</div>
+            <div class="fruit-count" id="apple-count">0 images</div>
+          </div>
+          <div class="upload-zone" id="apple-zone">
+            <input type="file" accept="image/*" multiple onchange="addImages('apple', this.files)">
+            <span>+ Add Apple Images</span>
+            <p>Multiple images supported</p>
+          </div>
+          <div class="thumbnails" id="apple-thumbs"></div>
+        </div>
+
+        <!-- Banana -->
+        <div class="fruit-card banana">
+          <div class="fruit-header">
+            <div class="fruit-icon">🍌</div>
+            <div class="fruit-name">Banana</div>
+            <div class="fruit-count" id="banana-count">0 images</div>
+          </div>
+          <div class="upload-zone" id="banana-zone">
+            <input type="file" accept="image/*" multiple onchange="addImages('banana', this.files)">
+            <span>+ Add Banana Images</span>
+            <p>Multiple images supported</p>
+          </div>
+          <div class="thumbnails" id="banana-thumbs"></div>
+        </div>
+
+        <!-- Orange -->
+        <div class="fruit-card orange">
+          <div class="fruit-header">
+            <div class="fruit-icon">🍊</div>
+            <div class="fruit-name">Orange</div>
+            <div class="fruit-count" id="orange-count">0 images</div>
+          </div>
+          <div class="upload-zone" id="orange-zone">
+            <input type="file" accept="image/*" multiple onchange="addImages('orange', this.files)">
+            <span>+ Add Orange Images</span>
+            <p>Multiple images supported</p>
+          </div>
+          <div class="thumbnails" id="orange-thumbs"></div>
+        </div>
+
+      </div>
+    </div>
+
+    <!-- Right panel -->
+    <div class="right-panel">
+
+      <!-- Train -->
+      <div class="panel-card">
+        <h3>// Training Control</h3>
+        <div class="stat-row">
+          <span class="stat-label">Epochs</span>
+          <span class="stat-value" id="stat-epochs">20</span>
+        </div>
+        <div class="stat-row">
+          <span class="stat-label">Learning Rate</span>
+          <span class="stat-value">0.0001</span>
+        </div>
+        <div class="stat-row">
+          <span class="stat-label">Classes</span>
+          <span class="stat-value">Apple · Banana · Orange</span>
+        </div>
+        <div class="stat-row">
+          <span class="stat-label">Base Model</span>
+          <span class="stat-value orange">MobileNet v1</span>
+        </div>
+
+        <br>
+        <div class="progress-wrap">
+          <div class="progress-label">
+            <span>Training Progress</span>
+            <span id="epoch-label">—</span>
+          </div>
+          <div class="progress-bar">
+            <div class="progress-fill" id="train-progress"></div>
+          </div>
+          <div class="progress-label">
+            <span>Loss</span>
+            <span id="loss-val">—</span>
+          </div>
+          <div class="progress-bar">
+            <div class="progress-fill" id="loss-progress" style="background: linear-gradient(90deg,#ff4757,#ffd23f)"></div>
+          </div>
+        </div>
+
+        <div id="loss-chart"></div>
+
+        <br>
+        <button id="train-btn" disabled onclick="trainModel()">▶ Train Model</button>
+      </div>
+
+      <!-- Predict -->
+      <div class="panel-card">
+        <h3>// Live Predict</h3>
+        <div id="predict-upload-zone">
+          <input type="file" accept="image/*" onchange="loadPredictImage(this.files[0])">
+          📁 Upload a fruit image to classify
+          <img id="predict-preview" />
+        </div>
+        <button id="predict-btn" disabled onclick="predict()">🔍 Classify Fruit</button>
+        <div id="result-box" style="margin-top:12px">
+          <span style="color:var(--muted);font-size:0.75rem">Awaiting prediction...</span>
+        </div>
+      </div>
+
+      <!-- Console -->
+      <div class="panel-card">
+        <h3>// Console Output</h3>
+        <div id="console-box"></div>
+      </div>
+
+    </div>
+  </div>
+</div>
+
+<script>
+// ─── State ─────────────────────────────────────────────────
+const CLASSES  = ['apple', 'banana', 'orange'];
+const EPOCHS   = 30;
+const LR       = 0.0003;
+const IMG_SIZE = 224;
+
+let mobileNet  = null;
+let mobileNetModel = null; // raw tf.LayersModel for intermediate layer
+let classifier = null;
+let isTrained  = false;
+let predictImg = null;
+
+const dataset    = { apple: [], banana: [], orange: [] };
+const lossHistory = [];
+
+// ─── Console logger ────────────────────────────────────────
+function clog(msg, type = 'info') {
+  const box = document.getElementById('console-box');
+  const now = new Date();
+  const ts  = `${String(now.getHours()).padStart(2,'0')}:${String(now.getMinutes()).padStart(2,'0')}:${String(now.getSeconds()).padStart(2,'0')}`;
+  const line = document.createElement('span');
+  line.className = `log-line ${type}`;
+  line.innerHTML = `<span class="ts">[${ts}]</span><span class="msg"> ${msg}</span>`;
+  box.appendChild(line);
+  box.appendChild(document.createElement('br'));
+  box.scrollTop = box.scrollHeight;
+  const methods = { info: 'log', success: 'log', warn: 'warn', error: 'error', accent: 'log' };
+  console[methods[type] || 'log'](`[TransferNet ${ts}] ${msg}`);
+}
+
+// ─── Status bar ────────────────────────────────────────────
+function setStatus(msg, state = '') {
+  document.getElementById('status-text').innerHTML = msg;
+  const bar = document.getElementById('status-bar');
+  const dot = document.getElementById('status-dot');
+  bar.className = state ? `ready ${state}` : '';
+  dot.className = 'status-dot';
+  if (state === 'ready')      dot.classList.add('green');
+  else if (state === 'error') dot.classList.add('red');
+  else                         dot.classList.add('pulse');
+}
+
+// ─── Phase manager ─────────────────────────────────────────
+function setPhase(n) {
+  for (let i = 1; i <= 4; i++) {
+    const el = document.getElementById(`ph${i}`);
+    el.className = 'phase' + (i < n ? ' done' : i === n ? ' active' : '');
+  }
+}
+
+// ─── Load MobileNet ────────────────────────────────────────
+async function init() {
+  clog('TensorFlow.js v' + tf.version.tfjs + ' ready', 'info');
+  clog('Fetching MobileNet weights from CDN...', 'info');
+  setPhase(1);
+  try {
+    // Load the high-level wrapper (used for .infer embedding)
+    mobileNet = await mobilenet.load({ version: 1, alpha: 1.0 });
+    clog('✅ MobileNet loaded successfully!', 'success');
+    clog('Input shape: [null, 224, 224, 3]', 'info');
+    clog('Feature embedding dim: 1024', 'info');
+    setStatus('✅ MobileNet Ready — Add images for each fruit category', 'ready');
+    setPhase(2);
+    checkTrainReady();
+  } catch (e) {
+    clog('❌ Failed to load MobileNet: ' + e.message, 'error');
+    setStatus('❌ Error loading model. Check console.', 'error');
+  }
+}
+
+// ─── Add images ────────────────────────────────────────────
+function addImages(label, files) {
+  if (!mobileNet) { clog('⚠ MobileNet not ready yet', 'warn'); return; }
+  const thumbs = document.getElementById(`${label}-thumbs`);
+  const count  = document.getElementById(`${label}-count`);
+  Array.from(files).forEach(file => {
+    const url = URL.createObjectURL(file);
+    const img = new Image();
+    img.crossOrigin = 'anonymous';
+    img.src = url;
+    img.onload = () => {
+      dataset[label].push(img);
+      const th = document.createElement('img');
+      th.src = url; th.className = 'thumb';
+      thumbs.appendChild(th);
+      count.textContent = `${dataset[label].length} image${dataset[label].length !== 1 ? 's' : ''}`;
+      clog(`📸 [${label}] added image #${dataset[label].length} — ${file.name}`, 'accent');
+      checkTrainReady();
+    };
+  });
+}
+
+function checkTrainReady() {
+  const allHave = CLASSES.every(c => dataset[c].length > 0);
+  document.getElementById('train-btn').disabled = !allHave || !mobileNet;
+  if (allHave) {
+    clog(`📊 Dataset: Apple×${dataset.apple.length} Banana×${dataset.banana.length} Orange×${dataset.orange.length}`, 'success');
+    clog('▶ Ready to train! Click "Train Model".', 'success');
+  }
+}
+
+// ─── Preprocess image → normalised tensor ─────────────────
+function preprocessImage(imgEl) {
+  return tf.tidy(() =>
+    tf.browser.fromPixels(imgEl)
+      .resizeBilinear([IMG_SIZE, IMG_SIZE])
+      .toFloat()
+      .div(tf.scalar(127.5))
+      .sub(tf.scalar(1.0))
+      .expandDims(0)          // [1, 224, 224, 3]
+  );
+}
+
+// ─── Extract MobileNet embedding for ONE image ─────────────
+// mobileNet.infer(tensor, true) returns the 1×1024 global-avg-pool embedding
+function getEmbedding(imgEl) {
+  const imgTensor = preprocessImage(imgEl);
+  // infer with embedding=true → shape [1, 1024]
+  const embedding = mobileNet.infer(imgTensor, true);
+  imgTensor.dispose();
+  return embedding; // caller must dispose
+}
+
+// ─── Data augmentation: flip horizontally ─────────────────
+function augmentImage(imgEl) {
+  // Draw onto offscreen canvas, flip, return new HTMLImageElement
+  const canvas = document.createElement('canvas');
+  canvas.width = imgEl.naturalWidth || imgEl.width;
+  canvas.height = imgEl.naturalHeight || imgEl.height;
+  const ctx = canvas.getContext('2d');
+  ctx.translate(canvas.width, 0);
+  ctx.scale(-1, 1);
+  ctx.drawImage(imgEl, 0, 0);
+  const flipped = new Image();
+  flipped.src = canvas.toDataURL();
+  return flipped;
+}
+
+// ─── Build balanced feature dataset with augmentation ─────
+async function buildDataset() {
+  const allFeatures = [];
+  const allLabels   = [];
+
+  for (let ci = 0; ci < CLASSES.length; ci++) {
+    const cls = CLASSES[ci];
+    const imgs = dataset[cls];
+    clog(`  Extracting features: [${cls}] × ${imgs.length} images (+${imgs.length} flipped)...`, 'info');
+
+    for (const img of imgs) {
+      // original
+      const emb = getEmbedding(img);
+      allFeatures.push(emb);
+      allLabels.push(ci);
+
+      // horizontally flipped augmentation
+      const flippedImg = augmentImage(img);
+      await new Promise(r => { flippedImg.onload = r; flippedImg.src = flippedImg.src; if (flippedImg.complete) r(); });
+      const embFlip = getEmbedding(flippedImg);
+      allFeatures.push(embFlip);
+      allLabels.push(ci);
+
+      await tf.nextFrame();
+    }
+  }
+
+  // Stack all embeddings → [N, 1024]
+  const xs = tf.concat(allFeatures, 0);
+  const ys = tf.oneHot(tf.tensor1d(allLabels, 'int32'), 3);
+  allFeatures.forEach(t => t.dispose());
+
+  clog(`  Total samples after augmentation: ${allLabels.length}`, 'success');
+  return { xs, ys, featDim: xs.shape[1] };
+}
+
+// ─── Shuffle tensors in unison ─────────────────────────────
+function shuffleTensors(xs, ys) {
+  return tf.tidy(() => {
+    const n = xs.shape[0];
+    const idx = tf.util.createShuffledIndices(n);
+    const idxTensor = tf.tensor1d(Array.from(idx), 'int32');
+    return {
+      xs: tf.gather(xs, idxTensor),
+      ys: tf.gather(ys, idxTensor)
+    };
+  });
+}
+
+// ─── Train ─────────────────────────────────────────────────
+async function trainModel() {
+  document.getElementById('train-btn').disabled = true;
+  setPhase(3);
+  setStatus('<span class="spinner"></span>Extracting MobileNet features...', '');
+  clog('━━━ TRANSFER LEARNING START ━━━', 'accent');
+  clog(`Config → Epochs:${EPOCHS}  LR:${LR}  Classes:3`, 'info');
+  clog('Step 1: Extracting embeddings from frozen MobileNet...', 'info');
+
+  let xs, ys, featDim;
+  try {
+    ({ xs, ys, featDim } = await buildDataset());
+  } catch (e) {
+    clog('❌ Feature extraction failed: ' + e.message, 'error');
+    document.getElementById('train-btn').disabled = false;
+    return;
+  }
+
+  // Shuffle
+  const { xs: xsSh, ys: ysSh } = shuffleTensors(xs, ys);
+  xs.dispose(); ys.dispose();
+
+  clog(`Feature dim: ${featDim} | Samples: ${xsSh.shape[0]}`, 'info');
+  clog('Step 2: Building custom classification head...', 'info');
+
+  // Dispose previous classifier
+  if (classifier) { classifier.dispose(); classifier = null; }
+
+  // Build head: 1024 → 256 → 3
+  classifier = tf.sequential();
+  classifier.add(tf.layers.dense({
+    inputShape: [featDim],
+    units: 256,
+    activation: 'relu',
+    kernelInitializer: 'glorotUniform',
+    kernelRegularizer: tf.regularizers.l2({ l2: 1e-4 })
+  }));
+  classifier.add(tf.layers.batchNormalization());
+  classifier.add(tf.layers.dropout({ rate: 0.4 }));
+  classifier.add(tf.layers.dense({
+    units: 3,
+    activation: 'softmax',
+    kernelInitializer: 'glorotUniform'
+  }));
+
+  classifier.compile({
+    optimizer: tf.train.adam(LR),
+    loss: 'categoricalCrossentropy',
+    metrics: ['accuracy']
+  });
+
+  clog('  Dense(256,relu,L2) → BatchNorm → Dropout(0.4) → Dense(3,softmax)', 'info');
+  clog('  Optimizer: Adam | Loss: CategoricalCrossentropy', 'info');
+  clog('━━━ TRAINING EPOCHS ━━━', 'accent');
+
+  lossHistory.length = 0;
+  document.getElementById('loss-chart').innerHTML = '';
+
+  const numSamples = xsSh.shape[0];
+  const batchSize  = Math.max(2, Math.min(8, numSamples));
+
+  await classifier.fit(xsSh, ysSh, {
+    epochs: EPOCHS,
+    batchSize,
+    shuffle: true,
+    validationSplit: 0.1,
+    callbacks: {
+      onEpochEnd: async (epoch, logs) => {
+        const loss    = logs.loss.toFixed(4);
+        const acc     = (logs.acc * 100).toFixed(1);
+        const valAcc  = logs.val_acc !== undefined ? (logs.val_acc * 100).toFixed(1) : '—';
+        const pct     = ((epoch + 1) / EPOCHS * 100).toFixed(0);
+
+        document.getElementById('train-progress').style.width = pct + '%';
+        document.getElementById('epoch-label').textContent    = `Epoch ${epoch+1}/${EPOCHS}`;
+        document.getElementById('loss-val').textContent       = `Loss: ${loss}`;
+        document.getElementById('loss-progress').style.width  = Math.min(logs.loss * 80, 100) + '%';
+        document.getElementById('stat-epochs').textContent    = `${epoch+1}/${EPOCHS}`;
+
+        lossHistory.push(parseFloat(loss));
+        updateLossChart();
+
+        const type = logs.acc > 0.85 ? 'success' : logs.acc > 0.5 ? 'warn' : 'info';
+        clog(`Epoch ${String(epoch+1).padStart(2,' ')}/${EPOCHS}  loss=${loss}  acc=${acc}%  val_acc=${valAcc}%`, type);
+        await tf.nextFrame();
+      }
+    }
+  });
+
+  xsSh.dispose(); ysSh.dispose();
+
+  isTrained = true;
+  clog('━━━ TRAINING COMPLETE ━━━', 'success');
+  clog('✅ Classifier head trained on MobileNet embeddings!', 'success');
+  clog('🎯 Upload a fruit image and click Classify.', 'success');
+
+  setStatus('✅ Training complete! Upload a fruit image to classify.', 'ready');
+  setPhase(4);
+  document.getElementById('predict-btn').disabled = false;
+  document.getElementById('train-btn').disabled   = false;
+  document.getElementById('train-btn').textContent = '↺ Re-Train';
+}
+
+function updateLossChart() {
+  const chartEl = document.getElementById('loss-chart');
+  chartEl.innerHTML = '';
+  const maxL = Math.max(...lossHistory, 0.01);
+  lossHistory.forEach(l => {
+    const bar = document.createElement('div');
+    bar.className = 'loss-bar';
+    bar.style.height = ((l / maxL) * 54 + 4) + 'px';
+    chartEl.appendChild(bar);
+  });
+}
+
+// ─── Load predict image ────────────────────────────────────
+function loadPredictImage(file) {
+  if (!file) return;
+  const url = URL.createObjectURL(file);
+  predictImg = new Image();
+  predictImg.crossOrigin = 'anonymous';
+  predictImg.src = url;
+  const prev = document.getElementById('predict-preview');
+  prev.src = url;
+  prev.style.display = 'block';
+  clog(`🖼 Prediction image loaded: ${file.name}`, 'info');
+}
+
+// ─── Predict ───────────────────────────────────────────────
+async function predict() {
+  if (!isTrained || !predictImg) {
+    clog('⚠ Train the model first and upload an image!', 'warn');
+    return;
+  }
+  clog('🔍 Running inference...', 'info');
+
+  const emb   = getEmbedding(predictImg);         // [1, 1024]
+  const probs = classifier.predict(emb);          // [1, 3]
+  const probsArr = Array.from(await probs.data());
+  emb.dispose(); probs.dispose();
+
+  const maxIdx = probsArr.indexOf(Math.max(...probsArr));
+  const label  = CLASSES[maxIdx];
+  const conf   = (probsArr[maxIdx] * 100).toFixed(1);
+
+  const icons  = { apple: '🍎', banana: '🍌', orange: '🍊' };
+  const colors = { apple: 'var(--apple)', banana: 'var(--banana)', orange: 'var(--orange)' };
+
+  document.getElementById('result-box').innerHTML = `
+    <span id="result-label" style="color:${colors[label]}">${icons[label]} ${label.toUpperCase()}</span>
+    <span id="result-conf">
+      Confidence: <b>${conf}%</b> &nbsp;|&nbsp;
+      🍎 ${(probsArr[0]*100).toFixed(1)}% &nbsp;
+      🍌 ${(probsArr[1]*100).toFixed(1)}% &nbsp;
+      🍊 ${(probsArr[2]*100).toFixed(1)}%
+    </span>
+  `;
+
+  clog(`🎯 Result: ${label.toUpperCase()} (${conf}% confidence)`, 'success');
+  clog(`   🍎 Apple: ${(probsArr[0]*100).toFixed(1)}%  🍌 Banana: ${(probsArr[1]*100).toFixed(1)}%  🍊 Orange: ${(probsArr[2]*100).toFixed(1)}%`, 'info');
+}
+
+// ─── Boot ──────────────────────────────────────────────────
+window.addEventListener('load', init);
+</script>
+</body>
+</html>
